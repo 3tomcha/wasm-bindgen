@@ -1,115 +1,55 @@
-use js_sys::{Array, Date};
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{Document, Element, HtmlElement, Window};
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{Request, RequestInit, RequestMode, Response};
 
-#[wasm_bindgen(start)]
-pub fn run() -> Result<(), JsValue> {
-    
-    let window = web_sys::window().expect("should have a window in this context");
-    let document = window.document().expect("window should have a document");
-
-    // One of the first interesting things we can do with closures is simply
-    // access stack data in Rust!
-    let array = Array::new();
-    array.push(&"Hello".into());
-    array.push(&1.into());
-    let mut first_item = None;
-    array.for_each(&mut |obj, idx, _arr| match idx {
-        0 => {
-            assert_eq!(obj, "Hello");
-            first_item = obj.as_string();
-        }
-        1 => assert_eq!(obj, 1),
-        _ => panic!("unknown index: {}", idx),
-    });
-    assert_eq!(first_item, Some("Hello".to_string()));
-
-    // Below are some more advanced usages of the `Closure` type for closures
-    // that need to live beyond our function call.
-
-    setup_clock(&window, &document)?;
-    setup_clicker(&document);
-
-    // And now that our demo is ready to go let's switch things up so
-    // everything is displayed and our loading prompt is hidden.
-    document
-        .get_element_by_id("loading")
-        .expect("should have #loading on the page")
-        .dyn_ref::<HtmlElement>()
-        .expect("#loading should be an `HtmlElement`")
-        .style()
-        .set_property("display", "none")?;
-    document
-        .get_element_by_id("script")
-        .expect("should have #script on the page")
-        .dyn_ref::<HtmlElement>()
-        .expect("#script should be an `HtmlElement`")
-        .style()
-        .set_property("display", "block")?;
-
-    Ok(())
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Branch {
+    pub name: String,
+    pub commit: Commit,
 }
 
-// Set up a clock on our page and update it each second to ensure it's got
-// an accurate date.
-//
-// Note the usage of `Closure` here because the closure is "long lived",
-// basically meaning it has to persist beyond the call to this one function.
-// Also of note here is the `.as_ref().unchecked_ref()` chain, which is how
-// you can extract `&Function`, what `web-sys` expects, from a `Closure`
-// which only hands you `&JsValue` via `AsRef`.
-fn setup_clock(window: &Window, document: &Document) -> Result<(), JsValue> {
-    
-    let current_time = document
-        .get_element_by_id("current-time")
-        .expect("should have #current-time on the page");
-    update_time(&current_time);
-    let a = Closure::wrap(Box::new(move || update_time(&current_time)) as Box<dyn Fn()>);
-    window
-        .set_interval_with_callback_and_timeout_and_arguments_0(a.as_ref().unchecked_ref(), 1000)?;
-    fn update_time(current_time: &Element) {
-        current_time.set_inner_html(&String::from(
-            Date::new_0().to_locale_string("en-GB", &JsValue::undefined()),
-        ));
-    }
-
-    // The instance of `Closure` that we created will invalidate its
-    // corresponding JS callback whenever it is dropped, so if we were to
-    // normally return from `setup_clock` then our registered closure will
-    // raise an exception when invoked.
-    //
-    // Normally we'd store the handle to later get dropped at an appropriate
-    // time but for now we want it to be a global handler so we use the
-    // `forget` method to drop it without invalidating the closure. Note that
-    // this is leaking memory in Rust, so this should be done judiciously!
-    a.forget();
-
-    Ok(())
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Commit {
+    pub sha: String,
+    pub commit: CommitDetails,
 }
 
-// We also want to count the number of times that our green square has been
-// clicked. Our callback will update the `#num-clicks` div.
-//
-// This is pretty similar above, but showing how closures can also implement
-// `FnMut()`.
-fn setup_clicker(document: &Document) {
-    
-    let num_clicks = document
-        .get_element_by_id("num-clicks")
-        .expect("should have #num-clicks on the page");
-    let mut clicks = 0;
-    let a = Closure::wrap(Box::new(move || {
-        clicks += 1;
-        num_clicks.set_inner_html(&clicks.to_string());
-    }) as Box<dyn FnMut()>);
-    document
-        .get_element_by_id("green-square")
-        .expect("should have #green-square on the page")
-        .dyn_ref::<HtmlElement>()
-        .expect("#green-square be an `HtmlElement`")
-        .set_onclick(Some(a.as_ref().unchecked_ref()));
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommitDetails {
+    pub author: Signature,
+    pub committer: Signature,
+}
 
-    // See comments in `setup_clock` above for why we use `a.forget()`.
-    a.forget();
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Signature {
+    pub name: String,
+    pub email: String,
+}
+
+
+#[wasm_bindgen]
+pub async fn run(repo: String) -> Result<JsValue, JsValue> {
+    let mut opts = RequestInit::new();
+    opts.method("GET");
+    opts.mode(RequestMode::Cors);
+
+    let url = format!("https://api.github.com/repos/{}/branches/master", repo);
+
+    let request = Request::new_with_str_and_init(&url, &opts)?;
+
+    request.headers().set("Accept", "application/vnd.github.v3+json")?;
+
+    let window = web_sys::window().unwrap();
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+
+    assert!(resp_value.is_instance_of::<Response>());
+    let resp: Response = resp_value.dyn_into().unwrap();
+
+    let json = JsFuture::from(resp.json()?).await?;
+
+    let branch_info: Branch = json.into_serde().unwrap();
+
+    Ok(JsValue::from_serde(&branch_info).unwrap())
 }

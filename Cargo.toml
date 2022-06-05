@@ -1,5 +1,5 @@
 [package]
-name = "closures"
+name = "fetch"
 version = "0.1.0"
 authors = ["The wasm-bindgen Developers"]
 edition = "2018"
@@ -8,16 +8,19 @@ edition = "2018"
 crate-type = ["cdylib"]
 
 [dependencies]
-wasm-bindgen = "0.2.80"
+wasm-bindgen = { version = "0.2.80", features = ["serde-serialize"]  }
 js-sys = "0.3.57"
-console_error_panic_hook = { version = "0.1.6", optional = true }
+wasm-bindgen-futures = "0.4.30"
+serde = { version = "1.0.80", features = ["derive"] }
+serde_derive = "^1.0.59"
 
 [dependencies.web-sys]
 version = "0.3.4"
 features = [
-  'CssStyleDeclaration',
-  'Document',
-  'Element',
-  'HtmlElement',
+  'Headers',
+  'Request',
+  'RequestInit',
+  'RequestMode',
+  'Response',
   'Window',
 ]
