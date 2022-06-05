@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 pub fn run() {
     bare_bones();
     using_a_macro();
-    // using_web_sys();
+    using_web_sys();
 }
 
 #[wasm_bindgen]
@@ -31,4 +31,13 @@ fn using_a_macro() {
     console_log!("Hello {}!", "world");
     console_log!("Let's print some numbers...");
     console_log!("1 + 3 = {}", 1 + 3);
+}
+
+fn using_web_sys() {
+    use web_sys::console;
+
+    console::log_1(&"Hello using web-sys".into());
+
+    let js: JsValue = 4.into();
+    console::log_2(&"Logging arbitrary values looks like".into(), &js);
 }
