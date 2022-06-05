@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen(start)]
 pub fn run() {
     bare_bones();
-    // using_a_macro();
+    using_a_macro();
     // using_web_sys();
 }
 
@@ -21,4 +21,14 @@ fn bare_bones() {
     log("Hello fron rust");
     log_u32(42);
     log_many("Logging", "many values");
+}
+
+macro_rules! console_log {
+    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()));
+}
+
+fn using_a_macro() {
+    console_log!("Hello {}!", "world");
+    console_log!("Let's print some numbers...");
+    console_log!("1 + 3 = {}", 1 + 3);
 }
