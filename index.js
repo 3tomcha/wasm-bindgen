@@ -4,5 +4,5 @@
 const rust = import('./pkg');
 
 rust
-  .then(m => m.run())
+.then(m => m.main())
   .catch(console.error);
